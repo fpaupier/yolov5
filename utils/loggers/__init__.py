@@ -4,6 +4,7 @@ Logging utils
 """
 
 import os
+from datetime import datetime
 import warnings
 from threading import Thread
 
@@ -17,7 +18,7 @@ from utils.plots import plot_images, plot_results
 from utils.torch_utils import de_parallel
 import mlflow
 import mlflow.pytorch
-
+from PIL import Image
 
 LOGGERS = ('csv', 'tb', 'wandb', "mlflow")  # text-file, TensorBoard, Weights & Biases
 RANK = int(os.getenv('RANK', -1))
@@ -67,7 +68,8 @@ class Loggers():
         # ML Flow
         mlflow.set_tracking_uri("YOUR_URI")  # Should be a env var
         mlflow.set_experiment("YOLOv5")  # Ditto Should be a env var
-        self.mlfow_run = mlflow.start_run()
+
+        self.mlfow_run = mlflow.start_run(run_name=now.ctime())
         with self.mlfow_run:
             mlflow.log_params(hyp)
 
@@ -97,9 +99,13 @@ class Loggers():
             if ni < 3:
                 f = self.save_dir / f'train_batch{ni}.jpg'  # filename
                 Thread(target=plot_images, args=(imgs, targets, paths, f), daemon=True).start()
-            if self.wandb and ni == 10:
                 files = sorted(self.save_dir.glob('train*.jpg'))
+            if self.wandb and ni == 10:
                 self.wandb.log({'Mosaics': [wandb.Image(str(f), caption=f.name) for f in files if f.exists()]})
+            for imgf in files:
+                with Image.open(imgf) as im:
+                    with self.mlfow_run:
+                        mlflow.log_image(im, imgf)
 
     def on_train_epoch_end(self, epoch):
         # Callback runs on train epoch end
