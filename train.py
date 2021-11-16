@@ -481,7 +481,7 @@ def parse_opt(known=False):
 
     # ML Flow arguments
     parser.add_argument('--mlflow_experiment', type=str, default="YOLOv5", help='ML Flow: Name of the experiment')
-    parser.add_argument('--mlflow_server', type=bool, help='ML Flow: host and port of the remote tracking server')
+    parser.add_argument('--mlflow_server', type=str, help='ML Flow: host and port of the remote tracking server')
 
     opt = parser.parse_known_args()[0] if known else parser.parse_args()
     return opt
