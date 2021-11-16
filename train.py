@@ -479,6 +479,10 @@ def parse_opt(known=False):
     parser.add_argument('--bbox_interval', type=int, default=-1, help='W&B: Set bounding-box image logging interval')
     parser.add_argument('--artifact_alias', type=str, default='latest', help='W&B: Version of dataset artifact to use')
 
+    # ML Flow arguments
+    parser.add_argument('--mlflow_experiment', type=str, default="YOLOv5", help='ML Flow: Name of the experiment')
+    parser.add_argument('--mlflow_server', type=bool, help='ML Flow: host and port of the remote tracking server')
+
     opt = parser.parse_known_args()[0] if known else parser.parse_args()
     return opt
 

@@ -4,7 +4,6 @@ Logging utils
 """
 
 import os
-from datetime import datetime
 import warnings
 from threading import Thread
 
@@ -20,7 +19,7 @@ import mlflow
 import mlflow.pytorch
 from PIL import Image
 
-LOGGERS = ('csv', 'tb', 'wandb', "mlflow")  # text-file, TensorBoard, Weights & Biases
+LOGGERS = ('csv', 'tb', 'wandb', "mlflow")  # text-file, TensorBoard, Weights & Biases, ML Flow
 RANK = int(os.getenv('RANK', -1))
 
 try:
@@ -66,12 +65,14 @@ class Loggers():
             self.tb = SummaryWriter(str(s))
 
         # ML Flow
-        mlflow.set_tracking_uri("YOUR_URI")  # Should be a env var
-        mlflow.set_experiment("YOLOv5")  # Ditto Should be a env var
-
-        self.mlfow_run = mlflow.start_run(run_name=now.ctime())
-        with self.mlfow_run:
-            mlflow.log_params(hyp)
+        if 'mlflow' in self.include:
+            prefix = colorstr('ML Flow: ')
+            self.logger.info(f"{prefix} Training metrics & artefacts collected and sent to {opt.mlflow_server} under Experiment: {opt.mlflow_experiment}")
+            mlflow.set_tracking_uri(opt.mlflow_server)
+            mlflow.set_experiment(opt.mlflow_server)
+            self.mlfow_run = mlflow.start_run()
+            with self.mlfow_run:
+                mlflow.log_params(hyp)
 
         # W&B
         if wandb and 'wandb' in self.include:
@@ -102,10 +103,6 @@ class Loggers():
                 files = sorted(self.save_dir.glob('train*.jpg'))
             if self.wandb and ni == 10:
                 self.wandb.log({'Mosaics': [wandb.Image(str(f), caption=f.name) for f in files if f.exists()]})
-            for imgf in files:
-                with Image.open(imgf) as im:
-                    with self.mlfow_run:
-                        mlflow.log_image(im, imgf)
 
     def on_train_epoch_end(self, epoch):
         # Callback runs on train epoch end
@@ -137,8 +134,9 @@ class Loggers():
             for k, v in x.items():
                 self.tb.add_scalar(k, v, epoch)
 
-        with self.mlfow_run:
-            mlflow.log_metrics(x, epoch)
+        if self.mlfow_run:
+            with self.mlfow_run:
+                mlflow.log_metrics(x, epoch)
 
         if self.wandb:
             self.wandb.log(x)
@@ -150,10 +148,11 @@ class Loggers():
             if ((epoch + 1) % self.opt.save_period == 0 and not final_epoch) and self.opt.save_period != -1:
                 self.wandb.log_model(last.parent, self.opt, epoch, fi, best_model=best_fitness == fi)
 
-        if ((epoch + 1) % self.opt.save_period == 0 and not final_epoch) and self.opt.save_period != -1:
-            with self.mlfow_run:
-                mlflow.log_metric('Fitness', fi, epoch)
-                mlflow.pytorch.save_model(model, path=chkpt_path)
+        if self.mlfow_run:
+            if ((epoch + 1) % self.opt.save_period == 0 and not final_epoch) and self.opt.save_period != -1:
+                with self.mlfow_run:
+                    mlflow.log_metric('Fitness', fi, epoch)
+                    mlflow.pytorch.save_model(model, path=chkpt_path)
 
     def on_train_end(self, last, best, plots, epoch, results):
         # Callback runs on training end
@@ -166,6 +165,13 @@ class Loggers():
             import cv2
             for f in files:
                 self.tb.add_image(f.stem, cv2.imread(str(f))[..., ::-1], epoch, dataformats='HWC')
+
+        if self.mlfow_run:
+            with self.mlfow_run:
+                for f in files:
+                    with Image.open(f) as im:
+                        mlflow.log_image(im, f)
+                mlflow.log_artifact(str(best if best.exists() else last))
 
         if self.wandb:
             self.wandb.log({"Results": [wandb.Image(str(f), caption=f.name) for f in files]})
