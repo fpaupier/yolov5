@@ -15,8 +15,11 @@ from utils.general import colorstr, emojis
 from utils.loggers.wandb.wandb_utils import WandbLogger
 from utils.plots import plot_images, plot_results
 from utils.torch_utils import de_parallel
+import mlflow
+import mlflow.pytorch
 
-LOGGERS = ('csv', 'tb', 'wandb')  # text-file, TensorBoard, Weights & Biases
+
+LOGGERS = ('csv', 'tb', 'wandb', "mlflow")  # text-file, TensorBoard, Weights & Biases
 RANK = int(os.getenv('RANK', -1))
 
 try:
@@ -60,6 +63,13 @@ class Loggers():
             prefix = colorstr('TensorBoard: ')
             self.logger.info(f"{prefix}Start with 'tensorboard --logdir {s.parent}', view at http://localhost:6006/")
             self.tb = SummaryWriter(str(s))
+
+        # ML Flow
+        mlflow.set_tracking_uri("YOUR_URI")  # Should be a env var
+        mlflow.set_experiment("YOLOv5")  # Ditto Should be a env var
+        self.mlfow_run = mlflow.start_run()
+        with self.mlfow_run:
+            mlflow.log_params(hyp)
 
         # W&B
         if wandb and 'wandb' in self.include:
@@ -121,15 +131,23 @@ class Loggers():
             for k, v in x.items():
                 self.tb.add_scalar(k, v, epoch)
 
+        with self.mlfow_run:
+            mlflow.log_metrics(x, epoch)
+
         if self.wandb:
             self.wandb.log(x)
             self.wandb.end_epoch(best_result=best_fitness == fi)
 
-    def on_model_save(self, last, epoch, final_epoch, best_fitness, fi):
+    def on_model_save(self, last, epoch, final_epoch, best_fitness, fi, model, chkpt_path):
         # Callback runs on model save event
         if self.wandb:
             if ((epoch + 1) % self.opt.save_period == 0 and not final_epoch) and self.opt.save_period != -1:
                 self.wandb.log_model(last.parent, self.opt, epoch, fi, best_model=best_fitness == fi)
+
+        if ((epoch + 1) % self.opt.save_period == 0 and not final_epoch) and self.opt.save_period != -1:
+            with self.mlfow_run:
+                mlflow.log_metric('Fitness', fi, epoch)
+                mlflow.pytorch.save_model(model, path=chkpt_path)
 
     def on_train_end(self, last, best, plots, epoch, results):
         # Callback runs on training end

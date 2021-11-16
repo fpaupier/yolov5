@@ -72,7 +72,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     # Hyperparameters
     if isinstance(hyp, str):
         with open(hyp, errors='ignore') as f:
-            hyp = yaml.safe_load(f)  # load hyps dict
+            hyp: dict = yaml.safe_load(f)  # load hyps dict
     LOGGER.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
 
     # Save run settings
@@ -383,13 +383,14 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                         'date': datetime.now().isoformat()}
 
                 # Save last, best and delete
+                chkpt_path: Path = w / f'epoch{epoch}.pt'
                 torch.save(ckpt, last)
                 if best_fitness == fi:
                     torch.save(ckpt, best)
                 if (epoch > 0) and (opt.save_period > 0) and (epoch % opt.save_period == 0):
-                    torch.save(ckpt, w / f'epoch{epoch}.pt')
+                    torch.save(ckpt, w / chkpt_path)
                 del ckpt
-                callbacks.run('on_model_save', last, epoch, final_epoch, best_fitness, fi)
+                callbacks.run('on_model_save', last, epoch, final_epoch, best_fitness, fi, model, chkpt_path)
 
             # Stop Single-GPU
             if RANK == -1 and stopper(epoch=epoch, fitness=fi):

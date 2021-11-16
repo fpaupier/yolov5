@@ -14,6 +14,9 @@ tqdm>=4.41.0
 
 # Logging -------------------------------------
 tensorboard>=2.4.1
+mlflow==1.21.0
+pysftp==0.2.9  # Required for pushing artefacts over SFTP
+psycopg2==2.9.2  # Required for using a postgres, might require: sudo apt install libpq-dev build-essential
 # wandb
 
 # Plotting ------------------------------------
