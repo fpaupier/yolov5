@@ -69,7 +69,7 @@ class Loggers():
             prefix = colorstr('ML Flow: ')
             self.logger.info(f"{prefix} Training metrics & artefacts collected and sent to {opt.mlflow_server} under Experiment: {opt.mlflow_experiment}")
             mlflow.set_tracking_uri(opt.mlflow_server)
-            mlflow.set_experiment(opt.mlflow_server)
+            mlflow.set_experiment(opt.mlflow_experiment)
             self.mlfow_run = mlflow.start_run()
             with self.mlfow_run:
                 mlflow.log_params(hyp)
